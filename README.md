@@ -56,7 +56,7 @@ flowchart LR
 ## Quickstart
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/shreyas-2217/spendlytics.git
 cd spendlytics
 py -m venv .venv
 .venv\Scripts\Activate.ps1        # Windows PowerShell
