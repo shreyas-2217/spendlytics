@@ -23,6 +23,9 @@ DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
 
 
+_SECRET_ERRORS: list[str] = []
+
+
 def _setting(name: str) -> str | None:
     """Read a setting from the environment, falling back to Streamlit secrets."""
     value = os.getenv(name)
@@ -33,9 +36,37 @@ def _setting(name: str) -> str | None:
 
         if name in st.secrets:
             return str(st.secrets[name]).strip()
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 - record for diagnostics
+        note = f"{type(exc).__name__}: {exc}"
+        if note not in _SECRET_ERRORS:
+            _SECRET_ERRORS.append(note)
     return None
+
+
+def secrets_diagnostics() -> str:
+    """Describe what the runtime sees of the configuration — never values."""
+    parts: list[str] = []
+    env_names = ("GEMINI_API_KEY", "GROQ_API_KEY", "GEMINI_MODEL", "GROQ_MODEL")
+    envs = [n for n in env_names if os.getenv(n)]
+    parts.append("env: " + (", ".join(envs) if envs else "none"))
+    try:
+        import streamlit as st
+
+        keys = [str(k) for k in st.secrets.keys()]
+        parts.append("secret keys: " + (", ".join(keys) if keys else "none"))
+        if "GEMINI_API_KEY" in keys:
+            value = str(st.secrets["GEMINI_API_KEY"])
+            has_newline = "\n" in value or "\r" in value
+            parts.append(
+                "GEMINI_API_KEY "
+                f"len={len(value)} newline={has_newline} "
+                f"trimmed={value == value.strip()} prefix_ok={value.startswith('AQ.')}"
+            )
+    except Exception as exc:  # noqa: BLE001 - this IS the diagnostic path
+        parts.append(f"secrets error: {type(exc).__name__}: {exc}")
+    if _SECRET_ERRORS:
+        parts.append("notes: " + " | ".join(_SECRET_ERRORS[-3:]))
+    return " · ".join(parts)
 
 
 class LLMClient:
