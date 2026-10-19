@@ -9,6 +9,8 @@
 ![tests](https://img.shields.io/badge/tests-pytest-0A9EDC?logo=pytest&logoColor=white)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
+**[Live app →](https://spendlytics-bawx8pcdp8v8jonxbztjfu.streamlit.app)** — try the built-in demo statement, no sign-up needed.
+
 ## Screenshots
 
 ![Landing page](assets/screenshot-landing.png)

@@ -10,7 +10,7 @@ import streamlit as st
 
 from src import analytics, charts, copilot, sample_data
 from src.categorizer import categorize
-from src.llm import LLMClient, secrets_diagnostics
+from src.llm import LLMClient
 from src.parsers import ParseError, parse_statement
 
 APP_NAME = "Spendlytics"
@@ -261,9 +261,6 @@ with st.sidebar:
                 f"{split.get('llm', 0):,} by AI, "
                 f"{split.get('fallback', 0):,} matched as person-to-person."
             )
-
-    if not client.available():  # temporary deploy diagnostic — remove after setup
-        st.caption("Key check: " + secrets_diagnostics())
 
     st.caption(f"{APP_NAME} v{APP_VERSION} · MIT License")
 
