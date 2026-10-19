@@ -52,6 +52,9 @@ h1, h2, h3, h4 {font-family: 'Manrope', 'Segoe UI', sans-serif !important;
     font-family: 'Material Symbols Rounded' !important;
 }
 
+/* heading anchor links are Streamlit chrome, not product */
+[data-testid="stHeaderActionElements"] {display: none !important;}
+
 /* ---------------------------------------------------------- landing */
 .sp-eyebrow {font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em;
     text-transform: uppercase; color: var(--accent); margin-bottom: 0.9rem;}
@@ -220,23 +223,21 @@ with st.sidebar:
         stats: dict = st.session_state["stats"] or {}
         source = str(df["source"].iloc[0]).upper()
         first, last = df["date"].min(), df["date"].max()
-        st.markdown('<div class="sp-side-label">Dataset</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sp-side-label">Statement</div>', unsafe_allow_html=True)
         st.markdown(
             f'<div class="sp-side-line"><b>{source}</b> · {len(df):,} transactions<br>'
             f"{first:%d %b %Y} → {last:%d %b %Y}</div>",
             unsafe_allow_html=True,
         )
-        st.markdown('<div class="sp-side-label">Categorized</div>', unsafe_allow_html=True)
-        st.markdown(
-            f'<div class="sp-side-line"><b>{stats.get("rules", 0):,}</b> by rules · '
-            f'<b>{stats.get("cache", 0):,}</b> cached · <b>{stats.get("llm", 0):,}</b> by AI<br>'
-            f'<b>{stats.get("fallback", 0):,}</b> person-to-person · '
-            f'<b>{stats.get("other", 0):,}</b> unlisted</div>',
-            unsafe_allow_html=True,
-        )
+        identified = stats.get("total", 0) - stats.get("other", 0)
+        matched = f"<b>{identified:,}</b> of {stats.get('total', 0):,} recognized"
+        if stats.get("other"):
+            matched += f'<br><b>{stats["other"]:,}</b> left as Other'
+        st.markdown('<div class="sp-side-label">Merchants</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="sp-side-line">{matched}</div>', unsafe_allow_html=True)
         st.write("")
         st.session_state["include_transfers"] = st.checkbox(
-            "Count P2P transfers as spending", value=True
+            "Include transfers to people", value=True
         )
         st.button("Start over", width="stretch", on_click=reset_data)
     else:
@@ -247,12 +248,19 @@ with st.sidebar:
 
     with st.expander("Privacy & data"):
         st.markdown(
-            "Statements are parsed **in memory in your session** and never stored. When an "
-            "AI key is configured, only cleaned merchant names (never amounts, dates or "
-            "account details) are sent for categorisation. Ask-tab questions send your "
-            "question and the table schema, not the transactions themselves. "
-            "Open source — you can verify all of this."
+            "Your statement is processed in memory in this session and never stored. "
+            "Merchant names may be sent to an AI service for categorization — never "
+            "amounts, dates or account numbers. Chat questions send only your question "
+            "and the column names."
         )
+        if st.session_state.get("stats"):
+            split = st.session_state["stats"]
+            st.caption(
+                f"This statement: {split.get('rules', 0):,} categorized by built-in rules, "
+                f"{split.get('cache', 0):,} remembered from earlier, "
+                f"{split.get('llm', 0):,} by AI, "
+                f"{split.get('fallback', 0):,} matched as person-to-person."
+            )
 
     st.caption(f"{APP_NAME} v{APP_VERSION} · MIT License")
 
@@ -283,10 +291,7 @@ if not has_data:
                 key="uploader",
                 label_visibility="collapsed",
             )
-            st.caption(
-                "Google Pay / PhonePe PDF exports or any bank CSV — unfamiliar column "
-                "layouts are detected automatically."
-            )
+            st.caption("PDF or CSV — from any bank or UPI app.")
             if uploaded is not None and st.session_state.get("upload_name") != uploaded.name:
                 try:
                     with st.spinner("Reading statement…"):
@@ -307,7 +312,7 @@ if not has_data:
             ):
                 load_sample()
                 st.rerun()
-            st.caption("Six months of realistic sample data. Nothing is uploaded.")
+            st.caption("Six months of sample data. Nothing is uploaded.")
 
     st.markdown(
         f"""
@@ -321,18 +326,18 @@ if not has_data:
           <div class="sp-step">
             <div class="sp-step-no">02</div>
             <div class="sp-step-title">Drop it here</div>
-            <p>PDF and CSV both work. The parser adapts to unfamiliar column layouts
-            instead of expecting one fixed format.</p>
+            <p>PDF and CSV both work — any bank, any statement, no preparation
+            needed.</p>
           </div>
           <div class="sp-step">
             <div class="sp-step-no">03</div>
             <div class="sp-step-title">Read the report</div>
-            <p>Spend by category, forgotten subscriptions, months above your normal —
-            then ask the copilot anything else.</p>
+            <p>See where it went, what you're still paying for, and which months stood
+            out — then ask anything.</p>
           </div>
         </div>
-        <div class="sp-foot">Spendlytics v{APP_VERSION} · MIT · statements are processed
-        in memory, never stored</div>
+        <div class="sp-foot">Spendlytics v{APP_VERSION} · Statements are processed in
+        memory, never stored</div>
         """,
         unsafe_allow_html=True,
     )
@@ -342,7 +347,6 @@ if not has_data:
 # -------------------------------------------------------------- dashboard
 
 df = st.session_state["df"]
-stats = st.session_state["stats"] or {}
 include_transfers = bool(st.session_state.get("include_transfers", True))
 rows = analytics.spend_rows(df, include_transfers)
 
@@ -357,7 +361,6 @@ st.markdown(
         <span class="sp-chip sp-chip-accent">{str(df["source"].iloc[0]).upper()}</span>
         <span class="sp-chip">{len(df):,} transactions</span>
         <span class="sp-chip">{df["date"].min():%d %b %Y} – {df["date"].max():%d %b %Y}</span>
-        <span class="sp-chip">categorized {stats.get("total", 0):,}</span>
       </div>
     </div>
     """,
@@ -365,7 +368,7 @@ st.markdown(
 )
 
 if rows.empty:
-    st.warning("No debit transactions found with the current filter.")
+    st.warning("No spending transactions match the current settings.")
     st.stop()
 
 tab_overview, tab_trends, tab_merchants, tab_subs, tab_ask, tab_export = st.tabs(
@@ -421,7 +424,7 @@ with tab_overview:
     insight = analytics.headline_insight(rows)
     if insight:
         st.markdown(
-            f'<div class="sp-callout"><span class="sp-callout-k">Auto insight</span>'
+            f'<div class="sp-callout"><span class="sp-callout-k">Insight</span>'
             f"{insight}</div>",
             unsafe_allow_html=True,
         )
@@ -462,13 +465,13 @@ with tab_trends:
     risers = analytics.category_breakdown(rows)
     risers = risers[risers["change_pct"].notna()].sort_values("change_pct", ascending=False)
     if not risers.empty:
-        st.subheader("Category momentum (latest month vs previous)")
+        st.subheader("What changed — latest month vs previous")
         mover_columns = st.columns(min(3, len(risers)))
         for column, (_, entry) in zip(mover_columns, risers.head(3).iterrows()):
             column.metric(
                 entry["category"],
                 money(entry["total"]),
-                delta=f"{entry['change_pct']:+.0f}% MoM",
+                delta=f"{entry['change_pct']:+.0f}%",
             )
 
 with tab_merchants:
@@ -499,8 +502,8 @@ with tab_subs:
     subscriptions = analytics.detect_subscriptions(df)
     if subscriptions.empty:
         st.caption(
-            "No recurring charges detected yet. Detection needs at least three charges "
-            "with a roughly monthly cadence and a stable amount."
+            "No recurring charges yet. They appear here once the same amount repeats "
+            "every month or so."
         )
     else:
         total_monthly = subscriptions["estimated_monthly"].sum()
@@ -517,23 +520,19 @@ with tab_subs:
             }
         )
         st.dataframe(display, hide_index=True)
-        st.caption(
-            "Detected from cadence (roughly monthly) and stable amounts — not from a "
-            "hardcoded list of services."
-        )
+        st.caption("Found from their billing rhythm: roughly monthly, similar amounts.")
 
 with tab_ask:
     st.markdown(
-        '<p class="sp-lede-sm">Ask about totals, categories, merchants or months. Your '
-        "question becomes a read-only SQL query, and you can inspect the query after "
-        "every answer.</p>",
+        '<p class="sp-lede-sm">Ask about totals, categories, merchants or months — '
+        "plain English works.</p>",
         unsafe_allow_html=True,
     )
     if not client.available():
         st.markdown(
-            '<div class="sp-callout"><span class="sp-callout-k">Copilot needs a key</span>'
-            "Add a free Gemini API key (2-minute setup, no card) to enable questions — "
-            "everything else on this page works without it.</div>",
+            '<div class="sp-callout"><span class="sp-callout-k">Ask AI is off</span>'
+            "Questions need an AI key. Add a free Gemini API key to switch this on — "
+            "everything else works without it.</div>",
             unsafe_allow_html=True,
         )
     suggestions = [
@@ -554,7 +553,7 @@ with tab_ask:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
             if message.get("sql"):
-                with st.expander("Generated SQL"):
+                with st.expander("How this was calculated"):
                     st.code(message["sql"], language="sql")
             if message.get("table") is not None:
                 table: pd.DataFrame = message["table"]
@@ -602,7 +601,7 @@ with tab_ask:
                             st.plotly_chart(figure, width="stretch", key="chart_chat_current")
                         st.dataframe(result.table, hide_index=True)
                 if result.sql:
-                    with st.expander("Generated SQL"):
+                    with st.expander("How this was calculated"):
                         st.code(result.sql, language="sql")
                 st.session_state["chat"].append(
                     {
@@ -612,16 +611,14 @@ with tab_ask:
                         "table": result.table,
                     }
                 )
-        st.caption(
-            "SQL is generated by AI and validated before running — read-only, single statement."
-        )
+        st.caption("AI answers can be wrong — double-check anything important.")
 
 with tab_export:
     cleaned = df.copy()
     summary = analytics.monthly_summary(df)
     export_columns = st.columns(2)
     export_columns[0].download_button(
-        "Download cleaned transactions (CSV)",
+        "Download all transactions (CSV)",
         data=cleaned.to_csv(index=False).encode("utf-8"),
         file_name="spendlytics_transactions.csv",
         mime="text/csv",
@@ -634,19 +631,19 @@ with tab_export:
         mime="text/csv",
         width="stretch",
     )
-    st.subheader("Data preview")
+    st.subheader("Preview")
     preview = money_frame(cleaned, ["amount"])
     st.dataframe(preview, hide_index=True, height=320)
-    with st.expander("Data dictionary"):
+    with st.expander("About these columns"):
         st.markdown(
             "| Column | Meaning |\n|---|---|\n"
-            "| date | Transaction date (normalised) |\n"
-            "| description | Raw narration from the statement |\n"
+            "| date | Transaction date |\n"
+            "| description | Original text from the statement |\n"
             "| merchant | Cleaned merchant name |\n"
-            "| amount | Absolute value in ₹ |\n"
-            "| direction | debit (spent) or credit (received) |\n"
-            "| category | Assigned spending category |\n"
-            "| source | Which parser produced the row |"
+            "| amount | Amount in ₹ |\n"
+            "| direction | Spent or received |\n"
+            "| category | Spending category |\n"
+            "| source | File this row came from |"
         )
 
 st.caption(f"{APP_NAME} v{APP_VERSION} · MIT License")
