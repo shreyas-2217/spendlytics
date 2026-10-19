@@ -1,11 +1,15 @@
 [theme]
-primaryColor = "#4F46E5"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F1F5F9"
-textColor = "#0F172A"
+primaryColor = "#C1442E"
+backgroundColor = "#F7F6F2"
+secondaryBackgroundColor = "#F2F0E9"
+textColor = "#171A21"
+font = "sans serif"
 
 [server]
 headless = true
+
+[client]
+toolbarMode = "minimal"
 
 [browser]
 gatherUsageStats = false

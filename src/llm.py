@@ -3,6 +3,9 @@
 Both providers have free tiers; the app works without any key and simply
 degrades to rules-based behaviour. Keys are read from environment variables
 first, then from Streamlit secrets (``.streamlit/secrets.toml``).
+
+Set ``SPENDLYTICS_DISABLE_LLM=1`` to force offline mode (used by tests so they
+never spend API quota).
 """
 
 from __future__ import annotations
@@ -39,8 +42,9 @@ class LLMClient:
     """Thin wrapper that talks to whichever provider has a key configured."""
 
     def __init__(self) -> None:
-        self.gemini_key = _setting("GEMINI_API_KEY")
-        self.groq_key = _setting("GROQ_API_KEY")
+        disabled = bool(os.getenv("SPENDLYTICS_DISABLE_LLM"))
+        self.gemini_key = None if disabled else _setting("GEMINI_API_KEY")
+        self.groq_key = None if disabled else _setting("GROQ_API_KEY")
         self.gemini_model = _setting("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL
         self.groq_model = _setting("GROQ_MODEL") or DEFAULT_GROQ_MODEL
         self.last_error: str | None = None

@@ -27,7 +27,11 @@ class ParseError(ValueError):
 
 
 def parse_amount(value: Any) -> float | None:
-    """Parse ``₹1,234.56``, ``1,234``, ``(500)`` or ``-500`` into a float.
+    """Parse ``₹1,234.56``, ``1,234``, ``(500)`` or ``349.00 Dr`` into a float.
+
+    Cells that merely *contain* digits — reference numbers, ids like ``TX1`` —
+    return ``None``: after known currency and direction markers are removed,
+    any remaining letter means the cell is not money.
 
     Returns ``None`` when the cell is not a number. Sign is preserved;
     callers normalise debit/credit semantics separately.
@@ -42,7 +46,12 @@ def parse_amount(value: Any) -> float | None:
     negative = text.startswith("(") and text.endswith(")")
     if text.startswith("-") or text.endswith("-"):
         negative = True
-    digits = re.sub(r"[^0-9.]", "", text)
+    candidate = re.sub(r"(?i)₹|rs\.?|inr", " ", text)
+    candidate = re.sub(r"(?i)\b(dr|cr|debit|credit|withdrawal|deposit)\b", " ", candidate)
+    candidate = re.sub(r"(?i)(?<=\d)\s*[dc]$", "", candidate.strip())
+    if re.search(r"[A-Za-z]", candidate):
+        return None
+    digits = re.sub(r"[^0-9.]", "", candidate)
     if digits in ("", ".") or digits.count(".") > 1:
         return None
     try:
@@ -80,6 +89,12 @@ def parse_date(value: Any) -> datetime | None:
         return None
     if re.fullmatch(r"\d{7,}", text.replace(" ", "")):
         return None  # long digit runs are reference numbers, not dates
+    try:
+        iso_value = datetime.fromisoformat(text)
+    except ValueError:
+        iso_value = None
+    if iso_value is not None and 2000 <= iso_value.year <= 2100:
+        return iso_value
     for fmt in _DATE_FORMATS:
         try:
             return datetime.strptime(text, fmt)
@@ -116,7 +131,8 @@ _VPA_RE = re.compile(r"@[a-z]+", re.I)
 _REF_RE = re.compile(r"\b\d{5,}\b")
 _NOISE_WORDS = re.compile(
     r"\b(upi|dr|cr|p2m|p2a|neft|imps|rtgs|ref|refno|txn|txnid|trf|transfer|payment|pay|pos"
-    r"|purchase|to|from|via|at|bharat|bhim|collect|request|success|completed|debited|credited)\b",
+    r"|purchase|to|from|via|at|bharat|bhim|collect|request|success|completed|debited|credited"
+    r"|paid|received|sent)\b",
     re.I,
 )
 
@@ -141,6 +157,7 @@ def clean_merchant(raw: Any) -> str:
     text = _NOISE_WORDS.sub(" ", text)
     text = re.sub(r"[^A-Za-z0-9&.' ]+", " ", text)
     text = re.sub(r"\s+", " ", text).strip(" .")
+    text = re.sub(r"^\d{3,6}\s+", "", text).strip()  # POS/store numbers: "9012 SHANTALA SILK"
     if not text:
         return "Unknown"
     text = text.title()
@@ -150,7 +167,7 @@ def clean_merchant(raw: Any) -> str:
 # --------------------------------------------------------- column mapping
 
 _HEADER_HINTS = {
-    "date": ("date",),
+    "date": ("date", "timestamp"),
     "description": ("description", "narration", "details", "particulars", "remarks", "transaction"),
     "amount": ("amount", "value"),
     "debit": ("debit", "withdrawal", "withdraw", "paid out"),

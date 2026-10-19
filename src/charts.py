@@ -6,25 +6,25 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-INDIGO = "#4F46E5"
-TEAL = "#0D9488"
+INK = "#1F2A56"
+EMERALD = "#0B6E4F"
 PALETTE = [
-    INDIGO,
-    TEAL,
-    "#F59E0B",
-    "#EC4899",
-    "#8B5CF6",
-    "#0EA5E9",
-    "#84CC16",
-    "#EF4444",
-    "#64748B",
-    "#14B8A6",
-    "#F97316",
-    "#6366F1",
-    "#22C55E",
-    "#E11D48",
-    "#A855F7",
-    "#0F766E",
+    INK,
+    "#C1442E",
+    EMERALD,
+    "#C98A1B",
+    "#5B6B8C",
+    "#8A4B6B",
+    "#3F7E75",
+    "#A65E2E",
+    "#6E7B3F",
+    "#9AA3B2",
+    "#D08770",
+    "#4C6A92",
+    "#7A5C8E",
+    "#B08A3E",
+    "#547A6B",
+    "#A76583",
 ]
 
 
@@ -49,7 +49,7 @@ def _style(fig: go.Figure, height: int = 380) -> go.Figure:
         height=height,
         margin=dict(l=10, r=10, t=40, b=10),
         legend=dict(orientation="h", yanchor="bottom", y=-0.25, x=0),
-        font=dict(family="Inter, Segoe UI, sans-serif", size=13),
+        font=dict(family="Manrope, Segoe UI, sans-serif", size=13),
     )
     return fig
 
@@ -69,13 +69,13 @@ def monthly_spend_figure(monthly: pd.Series) -> go.Figure | None:
 
     fig = px.bar(frame, x="month", y="amount")
     fig.update_traces(
-        marker_color=INDIGO,
+        marker_color=INK,
         hovertemplate="%{x}<br>₹%{y:,.0f}<extra></extra>",
     )
     fig.add_hline(
         y=average,
         line_dash="dot",
-        line_color="#94A3B8",
+        line_color="#9AA3B2",
         annotation_text=f"avg {inr(average)}",
         annotation_position="top left",
     )
@@ -115,7 +115,7 @@ def category_figure(breakdown: pd.DataFrame) -> go.Figure | None:
     fig.update_traces(
         marker=dict(
             colors=[
-                "#94A3B8" if label == "Other" else PALETTE[index % len(PALETTE)]
+                "#9AA3B2" if label == "Other" else PALETTE[index % len(PALETTE)]
                 for index, label in enumerate(labels)
             ]
         ),
@@ -158,7 +158,7 @@ def merchants_figure(merchants: pd.DataFrame) -> go.Figure | None:
     if merchants.empty:
         return None
     frame = merchants.sort_values("total")
-    fig = px.bar(frame, x="total", y="merchant", orientation="h", color_discrete_sequence=[INDIGO])
+    fig = px.bar(frame, x="total", y="merchant", orientation="h", color_discrete_sequence=[INK])
     fig.update_traces(hovertemplate="%{y}<br>₹%{x:,.0f}<extra></extra>")
     fig.update_xaxes(title=None, tickprefix="₹", separatethousands=True)
     fig.update_yaxes(title=None)
@@ -183,11 +183,11 @@ def result_figure(result: pd.DataFrame) -> go.Figure | None:
 
     if pd.api.types.is_datetime64_any_dtype(result[label_column]):
         fig = px.line(
-            result, x=label_column, y=value_column, markers=True, color_discrete_sequence=[INDIGO]
+            result, x=label_column, y=value_column, markers=True, color_discrete_sequence=[INK]
         )
     else:
         frame = result.head(12).copy()
-        fig = px.bar(frame, x=label_column, y=value_column, color_discrete_sequence=[TEAL])
+        fig = px.bar(frame, x=label_column, y=value_column, color_discrete_sequence=[EMERALD])
         fig.update_xaxes(tickangle=-30)
     fig.update_layout(title=None)
     return _style(fig, height=340)

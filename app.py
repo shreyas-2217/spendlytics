@@ -14,8 +14,7 @@ from src.llm import LLMClient
 from src.parsers import ParseError, parse_statement
 
 APP_NAME = "Spendlytics"
-APP_VERSION = "0.1.0"
-AUTHOR = "Shreyas V Melligeri"
+APP_VERSION = "0.2.0"
 
 st.set_page_config(
     page_title=f"{APP_NAME} · UPI spending, explained",
@@ -26,27 +25,129 @@ st.set_page_config(
 
 CSS = """
 <style>
-.block-container {padding-top: 2.2rem; padding-bottom: 3rem; max-width: 1150px;}
-div[data-testid="stMetric"] {
-    background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px;
-    padding: 14px 16px;
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+:root {
+    --paper: #F7F6F2;
+    --surface: #FFFFFF;
+    --ink: #171A21;
+    --muted: #5F6672;
+    --line: #E5E2D9;
+    --accent: #C1442E;
+    --accent-ink: #9E3524;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
 }
-div[data-testid="stMetric"] label {color: #475569;}
-div[data-testid="stMetricValue"] {font-size: 1.4rem;}
-.sp-hero {font-size: 2.4rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 0.2rem;}
-.sp-sub {font-size: 1.05rem; color: #475569; margin-bottom: 1.2rem;}
-.sp-badge {display:inline-block; background:#EEF2FF; color:#4338CA; border-radius:999px;
-    padding:2px 10px; font-size:0.78rem; font-weight:600; margin-right:6px;}
-.sp-card {background:#F8FAFC; border:1px solid #E2E8F0; border-radius:12px; padding:14px 16px;
-    height:100%;}
-.sp-card h4 {margin: 0 0 6px 0; font-size: 0.95rem;}
-.sp-card p {margin: 0; color:#475569; font-size: 0.88rem;}
-.stat-strip {display:grid; grid-template-columns:repeat(auto-fit, minmax(205px, 1fr)); gap:10px;
-    margin-bottom:0.6rem;}
-.stat {background:#F8FAFC; border:1px solid #E2E8F0; border-radius:12px; padding:14px 16px;}
-.stat-label {font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:#64748B;}
-.stat-value {font-size:1.5rem; font-weight:700; color:#0F172A; line-height:1.3; white-space:nowrap;
-    overflow:hidden; text-overflow:ellipsis;}
+
+html, body {background: var(--paper);}
+.stApp {background: var(--paper); font-family: 'Manrope', 'Segoe UI', sans-serif;}
+[data-testid="stHeader"] {background: transparent;}
+[data-testid="stToolbar"] {display: none;}
+[data-testid="stSidebar"] {background: #F2F0E9; border-right: 1px solid var(--line);}
+.block-container {max-width: 1160px; padding-top: 3.6rem; padding-bottom: 3rem;}
+h1, h2, h3, h4 {font-family: 'Manrope', 'Segoe UI', sans-serif !important;
+    letter-spacing: -0.01em; color: var(--ink);}
+
+/* icon glyphs keep their own font */
+[data-testid="stIconMaterial"], .material-symbols-rounded {
+    font-family: 'Material Symbols Rounded' !important;
+}
+
+/* ---------------------------------------------------------- landing */
+.sp-eyebrow {font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 0.9rem;}
+.sp-display {font-family: 'Instrument Serif', Georgia, serif !important; font-weight: 400;
+    font-size: clamp(2.1rem, 4.2vw, 3.3rem); line-height: 1.06; color: var(--ink);
+    margin: 0 0 1rem 0; letter-spacing: -0.01em;}
+.sp-display em {font-style: italic;}
+.sp-lede {font-size: 1.02rem; color: var(--muted); max-width: 34rem; line-height: 1.6;
+    margin: 0 0 1rem 0;}
+.sp-lede-sm {font-size: 0.92rem; color: var(--muted); line-height: 1.55; margin: 0 0 0.9rem 0;}
+.sp-trust {font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.02em;
+    color: var(--muted);}
+.sp-card-title {font-weight: 700; font-size: 1.02rem; color: var(--ink); margin-bottom: 0.35rem;}
+.sp-or {display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 0.72rem;
+    font-family: var(--mono); letter-spacing: 0.08em; text-transform: uppercase;
+    margin: 0.9rem 0 0.7rem 0;}
+.sp-or::before, .sp-or::after {content: ""; height: 1px; background: var(--line); flex: 1;}
+.sp-steps {display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 26px; border-top: 1px solid var(--line); margin-top: 2.4rem; padding-top: 1.4rem;}
+.sp-step-no {font-family: var(--mono); font-size: 0.72rem; color: var(--accent);
+    letter-spacing: 0.1em;}
+.sp-step-title {font-weight: 700; font-size: 0.98rem; margin: 0.35rem 0 0.3rem 0;
+    color: var(--ink);}
+.sp-step p {font-size: 0.88rem; color: var(--muted); line-height: 1.55; margin: 0;}
+.sp-foot {font-family: var(--mono); font-size: 0.7rem; color: #8B8B80; letter-spacing: 0.02em;
+    margin-top: 2.6rem;}
+
+/* -------------------------------------------------------- dashboard */
+.sp-head {display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
+    gap: 10px; border-bottom: 1px solid var(--line); padding-bottom: 14px;
+    margin-bottom: 0.9rem;}
+.sp-wordmark {font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; color: var(--ink);}
+.sp-head-sub {font-size: 0.8rem; color: var(--muted); margin-top: 1px;}
+.sp-chips {display: flex; flex-wrap: wrap; gap: 8px;}
+.sp-chip {font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.05em;
+    text-transform: uppercase; color: #3E4450; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px;}
+.sp-chip-accent {color: var(--accent); border-color: #EBD3CD; background: #FDF3F0;}
+.stat-strip {display: grid; grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
+    gap: 10px; margin-bottom: 0.6rem;}
+.stat {background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 15px 18px;}
+.stat-label {font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted);}
+.stat-value {font-family: var(--mono); font-size: 1.45rem; font-weight: 600; color: var(--ink);
+    line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+.sp-callout {background: #FFFDF6; border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 12px; padding: 14px 18px; font-size: 0.95rem; color: var(--ink);
+    line-height: 1.55; margin-top: 0.3rem;}
+.sp-callout-k {display: block; font-family: var(--mono); font-size: 0.66rem;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px;}
+.sp-side-label {font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted); margin: 0.6rem 0 0.3rem 0;}
+.sp-side-line {font-size: 0.82rem; color: var(--muted); line-height: 1.6;}
+.sp-side-line b {color: var(--ink); font-family: var(--mono); font-weight: 600;}
+
+/* -------------------------------------------------- native widgets */
+div[data-testid="stMetric"] {background: var(--surface); border: 1px solid var(--line);
+    border-radius: 14px; padding: 15px 18px;}
+div[data-testid="stMetricLabel"] {font-family: var(--mono) !important; text-transform: uppercase;
+    letter-spacing: 0.08em;}
+div[data-testid="stMetricValue"] {font-family: var(--mono); font-size: 1.35rem;}
+div[data-testid="stVerticalBlockBorderWrapper"] {background: var(--surface);
+    border-color: var(--line) !important; border-radius: 16px;}
+.stButton > button, .stDownloadButton > button {border-radius: 10px; border: 1px solid #D9D5C9;
+    background: var(--surface); color: var(--ink); font-weight: 600;}
+.stButton > button:hover, .stDownloadButton > button:hover {
+    border-color: var(--ink); color: var(--ink);}
+.stButton > button[kind="primary"], button[data-testid="stBaseButton-primary"] {
+    background: var(--accent); border-color: var(--accent); color: #FFFFFF;}
+.stButton > button[kind="primary"]:hover, button[data-testid="stBaseButton-primary"]:hover {
+    background: var(--accent-ink); border-color: var(--accent-ink); color: #FFFFFF;}
+.stTabs [data-baseweb="tab-list"] {gap: 2px; border-bottom: 1px solid var(--line);}
+.stTabs [data-baseweb="tab"] {font-weight: 600; font-size: 0.92rem; color: var(--muted);}
+.stTabs [aria-selected="true"] {color: var(--accent) !important;}
+.stTabs [data-baseweb="tab-highlight"] {background-color: var(--accent);}
+[data-testid="stFileUploaderDropzone"] {background: #FBFAF5; border: 1.5px dashed #CFCBBE;
+    border-radius: 12px;}
+[data-testid="stFileUploaderDropzone"] button {border-radius: 8px; border-color: #D9D5C9;}
+div[data-testid="stAlert"] {border-radius: 12px;}
+div[data-testid="stChatMessage"] {background: var(--surface); border: 1px solid var(--line);
+    border-radius: 14px;}
+[data-testid="stChatInput"] textarea {font-family: 'Manrope', sans-serif;}
+code, pre, .stCode {font-family: var(--mono);}
+div[data-testid="stExpander"] details {border-radius: 12px; border-color: var(--line);}
+[data-testid="stWidgetLabel"] p {font-weight: 600; font-size: 0.88rem;}
+
+@keyframes sp-rise {from {opacity: 0; transform: translateY(8px);}
+    to {opacity: 1; transform: none;}}
+.sp-eyebrow, .sp-display, .sp-lede, .sp-trust {animation: sp-rise 0.5s ease-out both;}
+.sp-lede {animation-delay: 0.05s;}
+.sp-steps {animation: sp-rise 0.6s ease-out 0.1s both;}
+@media (prefers-reduced-motion: reduce) {
+    .sp-eyebrow, .sp-display, .sp-lede, .sp-trust, .sp-steps {animation: none;}
+}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)
@@ -86,7 +187,7 @@ def apply_data(frame: pd.DataFrame, meta: dict) -> None:
 
 
 def reset_data() -> None:
-    for key in ("df", "stats", "meta", "chat", "upload_name"):
+    for key in ("df", "stats", "meta", "chat", "upload_name", "uploader"):
         st.session_state.pop(key, None)
 
 
@@ -110,104 +211,130 @@ has_data = st.session_state["df"] is not None and not st.session_state["df"].emp
 # ----------------------------------------------------------------- sidebar
 
 with st.sidebar:
-    st.markdown(f"## 💸 {APP_NAME}")
+    st.markdown('<div class="sp-wordmark" style="font-size:1.2rem;">Spendlytics</div>',
+                unsafe_allow_html=True)
     st.caption("UPI spending, explained — then ask it anything.")
 
     if has_data:
         df: pd.DataFrame = st.session_state["df"]
         stats: dict = st.session_state["stats"] or {}
-        source = str(df["source"].iloc[0]).upper() if not df.empty else "—"
+        source = str(df["source"].iloc[0]).upper()
         first, last = df["date"].min(), df["date"].max()
+        st.markdown('<div class="sp-side-label">Dataset</div>', unsafe_allow_html=True)
         st.markdown(
-            f"**Dataset**  \n"
-            f"`{source}` · {len(df):,} transactions  \n"
-            f"{first:%d %b %Y} → {last:%d %b %Y}"
+            f'<div class="sp-side-line"><b>{source}</b> · {len(df):,} transactions<br>'
+            f"{first:%d %b %Y} → {last:%d %b %Y}</div>",
+            unsafe_allow_html=True,
         )
-        st.caption(
-            f"Categorized: {stats.get('rules', 0):,} rules · {stats.get('fallback', 0):,} P2P · "
-            f"{stats.get('cache', 0):,} cache · {stats.get('llm', 0):,} AI · "
-            f"{stats.get('other', 0):,} other"
+        st.markdown('<div class="sp-side-label">Categorized</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="sp-side-line"><b>{stats.get("rules", 0):,}</b> by rules · '
+            f'<b>{stats.get("cache", 0):,}</b> cached · <b>{stats.get("llm", 0):,}</b> by AI<br>'
+            f'<b>{stats.get("fallback", 0):,}</b> person-to-person · '
+            f'<b>{stats.get("other", 0):,}</b> unlisted</div>',
+            unsafe_allow_html=True,
         )
-        st.session_state["exclude_transfers"] = st.checkbox(
-            "Exclude P2P transfers from spending", value=False
+        st.write("")
+        st.session_state["include_transfers"] = st.checkbox(
+            "Count P2P transfers as spending", value=True
         )
-        if st.button("Start over", width="stretch"):
-            reset_data()
-            st.rerun()
+        st.button("Start over", width="stretch", on_click=reset_data)
     else:
-        st.info("Load the sample data or upload a statement to begin.")
-
-    with st.expander("About & privacy"):
         st.markdown(
-            "Statements are parsed **in memory** and never stored. If an AI key is "
-            "configured, only cleaned merchant names (never amounts, dates or account "
-            "details) are sent for categorisation. The code is open source — verify it."
+            '<div class="sp-side-line">Load the demo statement or add your own to begin.</div>',
+            unsafe_allow_html=True,
         )
 
-    st.caption(f"v{APP_VERSION} · built by {AUTHOR} · MIT License")
+    with st.expander("Privacy & data"):
+        st.markdown(
+            "Statements are parsed **in memory in your session** and never stored. When an "
+            "AI key is configured, only cleaned merchant names (never amounts, dates or "
+            "account details) are sent for categorisation. Ask-tab questions send your "
+            "question and the table schema, not the transactions themselves. "
+            "Open source — you can verify all of this."
+        )
+
+    st.caption(f"{APP_NAME} v{APP_VERSION} · MIT License")
 
 
-# ---------------------------------------------------------------- landing
+# ----------------------------------------------------------------- landing
 
 if not has_data:
-    st.markdown(f'<div class="sp-hero">💸 {APP_NAME}</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="sp-sub">Where did your money go? Upload a UPI statement and find out '
-        "in ten seconds.</div>",
-        unsafe_allow_html=True,
-    )
-
-    col_a, col_b, col_c = st.columns(3)
-    col_a.markdown(
-        '<div class="sp-card"><h4>📊 Auto-categorized</h4>'
-        "<p>Every transaction sorted into food, transport, subscriptions and more — "
-        "no spreadsheet work.</p></div>",
-        unsafe_allow_html=True,
-    )
-    col_b.markdown(
-        '<div class="sp-card"><h4>🔍 Hidden charges</h4>'
-        "<p>Recurring subscriptions, fee leaks and the months that were way above "
-        "your normal.</p></div>",
-        unsafe_allow_html=True,
-    )
-    col_c.markdown(
-        '<div class="sp-card"><h4>💬 Ask anything</h4>'
-        "<p>“How much did I spend on Swiggy in September?” — answered with a guarded "
-        "SQL copilot.</p></div>",
-        unsafe_allow_html=True,
-    )
-
-    st.write("")
-    left, right = st.columns([1, 1])
+    left, right = st.columns([1.08, 0.92], gap="large")
     with left:
-        if st.button("▶  Try it with sample data", type="primary", key="load_sample"):
-            load_sample()
-            st.rerun()
-        st.caption("No statement needed — loads 6 months of realistic demo data.")
-    with right:
-        uploaded = st.file_uploader(
-            "Or upload your statement (PDF or CSV)",
-            type=["pdf", "csv", "txt", "tsv"],
-            key="uploader",
+        st.markdown(
+            """
+            <div class="sp-eyebrow">UPI statement analyser</div>
+            <h1 class="sp-display">Your UPI history,<br>finally <em>in order</em>.</h1>
+            <p class="sp-lede">Drop a Google&nbsp;Pay, PhonePe or bank statement. See where the
+            money went, catch the subscriptions you forgot, and ask plain-English questions
+            about your own spending.</p>
+            <p class="sp-trust">No sign-up · nothing stored · reads the export you already have</p>
+            """,
+            unsafe_allow_html=True,
         )
-        st.caption("Works with Google Pay / PhonePe statement exports and bank CSVs.")
+    with right:
+        with st.container(border=True):
+            st.markdown('<div class="sp-card-title">Add your statement</div>',
+                        unsafe_allow_html=True)
+            uploaded = st.file_uploader(
+                "Statement file",
+                type=["pdf", "csv", "txt", "tsv"],
+                key="uploader",
+                label_visibility="collapsed",
+            )
+            st.caption(
+                "Google Pay / PhonePe PDF exports or any bank CSV — unfamiliar column "
+                "layouts are detected automatically."
+            )
+            if uploaded is not None and st.session_state.get("upload_name") != uploaded.name:
+                try:
+                    with st.spinner("Reading statement…"):
+                        frame, meta = parse_statement(uploaded, uploaded.name)
+                    apply_data(frame, meta)
+                    st.session_state["upload_name"] = uploaded.name
+                    st.rerun()
+                except ParseError as exc:
+                    st.error(f"Couldn't read this statement: {exc}")
+                except Exception as exc:  # noqa: BLE001 — friendly message, not a traceback
+                    st.error(f"Something went wrong while reading the file: {exc}")
+            st.markdown('<div class="sp-or">or</div>', unsafe_allow_html=True)
+            if st.button(
+                "Try it with the demo statement",
+                type="primary",
+                width="stretch",
+                key="load_sample",
+            ):
+                load_sample()
+                st.rerun()
+            st.caption("Six months of realistic sample data. Nothing is uploaded.")
 
-    if uploaded is not None and st.session_state.get("upload_name") != uploaded.name:
-        try:
-            with st.spinner("Reading statement…"):
-                frame, meta = parse_statement(uploaded, uploaded.name)
-            apply_data(frame, meta)
-            st.session_state["upload_name"] = uploaded.name
-            st.rerun()
-        except ParseError as exc:
-            st.error(f"Couldn't parse this statement: {exc}")
-        except Exception as exc:  # noqa: BLE001 — show a friendly message, not a traceback
-            st.error(f"Unexpected error while parsing: {exc}")
-
-    st.divider()
-    st.caption(
-        "🔒 Statements are processed in memory and never stored or uploaded anywhere. "
-        "The parser runs locally in this app."
+    st.markdown(
+        f"""
+        <div class="sp-steps">
+          <div class="sp-step">
+            <div class="sp-step-no">01</div>
+            <div class="sp-step-title">Export it</div>
+            <p>Google&nbsp;Pay → profile → Transaction statement. PhonePe → profile →
+            Transaction history. Any bank → net banking → download CSV or PDF.</p>
+          </div>
+          <div class="sp-step">
+            <div class="sp-step-no">02</div>
+            <div class="sp-step-title">Drop it here</div>
+            <p>PDF and CSV both work. The parser adapts to unfamiliar column layouts
+            instead of expecting one fixed format.</p>
+          </div>
+          <div class="sp-step">
+            <div class="sp-step-no">03</div>
+            <div class="sp-step-title">Read the report</div>
+            <p>Spend by category, forgotten subscriptions, months above your normal —
+            then ask the copilot anything else.</p>
+          </div>
+        </div>
+        <div class="sp-foot">Spendlytics v{APP_VERSION} · MIT · statements are processed
+        in memory, never stored</div>
+        """,
+        unsafe_allow_html=True,
     )
     st.stop()
 
@@ -216,17 +343,26 @@ if not has_data:
 
 df = st.session_state["df"]
 stats = st.session_state["stats"] or {}
-include_transfers = not st.session_state.get("exclude_transfers", False)
+include_transfers = bool(st.session_state.get("include_transfers", True))
 rows = analytics.spend_rows(df, include_transfers)
 
-st.markdown(f'<div class="sp-hero">{APP_NAME}</div>', unsafe_allow_html=True)
 st.markdown(
-    f'<span class="sp-badge">{str(df["source"].iloc[0]).upper()}</span>'
-    f'<span class="sp-badge">{len(df):,} transactions</span>'
-    f'<span class="sp-badge">categorized {stats.get("total", 0):,}</span>',
+    f"""
+    <div class="sp-head">
+      <div>
+        <div class="sp-wordmark">{APP_NAME}</div>
+        <div class="sp-head-sub">UPI spending, explained — then ask it anything</div>
+      </div>
+      <div class="sp-chips">
+        <span class="sp-chip sp-chip-accent">{str(df["source"].iloc[0]).upper()}</span>
+        <span class="sp-chip">{len(df):,} transactions</span>
+        <span class="sp-chip">{df["date"].min():%d %b %Y} – {df["date"].max():%d %b %Y}</span>
+        <span class="sp-chip">categorized {stats.get("total", 0):,}</span>
+      </div>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
-st.write("")
 
 if rows.empty:
     st.warning("No debit transactions found with the current filter.")
@@ -234,12 +370,12 @@ if rows.empty:
 
 tab_overview, tab_trends, tab_merchants, tab_subs, tab_ask, tab_export = st.tabs(
     [
-        "📊 Overview",
-        "📈 Trends",
-        "🏪 Merchants",
-        "🔁 Subscriptions",
-        "💬 Ask AI",
-        "⬇️ Export",
+        "Overview",
+        "Trends",
+        "Merchants",
+        "Subscriptions",
+        "Ask AI",
+        "Export",
     ]
 )
 
@@ -284,9 +420,13 @@ with tab_overview:
 
     insight = analytics.headline_insight(rows)
     if insight:
-        st.info(f"💡 {insight}")
+        st.markdown(
+            f'<div class="sp-callout"><span class="sp-callout-k">Auto insight</span>'
+            f"{insight}</div>",
+            unsafe_allow_html=True,
+        )
     st.caption(
-        f"🍽️ Food & dining (delivery + eating out) was {kpis['food_dining_share'] * 100:.0f}% "
+        f"Food & dining (delivery + eating out) was {kpis['food_dining_share'] * 100:.0f}% "
         "of your spending this period."
     )
 
@@ -383,10 +523,18 @@ with tab_subs:
         )
 
 with tab_ask:
+    st.markdown(
+        '<p class="sp-lede-sm">Ask about totals, categories, merchants or months. Your '
+        "question becomes a read-only SQL query, and you can inspect the query after "
+        "every answer.</p>",
+        unsafe_allow_html=True,
+    )
     if not client.available():
-        st.info(
-            "**Copilot is off.** Add a free Gemini API key to enable plain-English "
-            "questions — see the README (2-minute setup). Everything else works without it."
+        st.markdown(
+            '<div class="sp-callout"><span class="sp-callout-k">Copilot needs a key</span>'
+            "Add a free Gemini API key (2-minute setup, no card) to enable questions — "
+            "everything else on this page works without it.</div>",
+            unsafe_allow_html=True,
         )
     suggestions = [
         "How much did I spend on food delivery?",
@@ -473,14 +621,14 @@ with tab_export:
     summary = analytics.monthly_summary(df)
     export_columns = st.columns(2)
     export_columns[0].download_button(
-        "⬇️ Cleaned transactions (CSV)",
+        "Download cleaned transactions (CSV)",
         data=cleaned.to_csv(index=False).encode("utf-8"),
         file_name="spendlytics_transactions.csv",
         mime="text/csv",
         width="stretch",
     )
     export_columns[1].download_button(
-        "⬇️ Monthly summary (CSV)",
+        "Download monthly summary (CSV)",
         data=summary.to_csv(index=False).encode("utf-8"),
         file_name="spendlytics_monthly_summary.csv",
         mime="text/csv",
@@ -501,4 +649,4 @@ with tab_export:
             "| source | Which parser produced the row |"
         )
 
-st.caption(f"{APP_NAME} v{APP_VERSION} · built by {AUTHOR} · MIT License")
+st.caption(f"{APP_NAME} v{APP_VERSION} · MIT License")

@@ -1,8 +1,12 @@
 """Smoke tests: the whole app boots and the sample-data flow renders."""
 
+import os
 from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
+
+# Tests must never spend API quota — force the offline path.
+os.environ["SPENDLYTICS_DISABLE_LLM"] = "1"
 
 APP_PATH = Path(__file__).resolve().parent.parent / "app.py"
 
@@ -18,7 +22,7 @@ def test_sample_data_flow():
     at.run()
     assert not at.exception
 
-    sample_button = next(button for button in at.button if "sample data" in button.label)
+    sample_button = next(button for button in at.button if "demo statement" in button.label)
     sample_button.click()
     at.run()
 

@@ -30,6 +30,14 @@ class TestParseAmount:
         assert parse_amount("") is None
         assert parse_amount(None) is None
 
+    def test_id_like_cells_are_not_money(self):
+        assert parse_amount("TX1") is None
+        assert parse_amount("Txn 0042") is None
+
+    def test_trailing_dc_marker(self):
+        assert parse_amount("2000.00C") == 2000.0
+        assert parse_amount("750.50 D") == 750.5
+
 
 class TestParseDate:
     def test_day_first(self):
@@ -40,6 +48,9 @@ class TestParseDate:
 
     def test_month_name(self):
         assert parse_date("12 Sep 2026") == datetime(2026, 9, 12)
+
+    def test_iso_datetime_is_not_day_month_swapped(self):
+        assert parse_date("2026-09-02 18:30:12") == datetime(2026, 9, 2, 18, 30, 12)
 
     def test_reference_number_is_not_a_date(self):
         assert parse_date("412345678901") is None
@@ -57,6 +68,13 @@ class TestCleanMerchant:
 
     def test_person_transfer(self):
         assert clean_merchant("UPI/P2A/412345678901/Aarav Sharma/aarav@ybl") == "Aarav Sharma"
+
+    def test_paid_and_received_prefixes_are_stripped(self):
+        assert clean_merchant("Paid to SHRI KRISHNA FUEL POINT") == "Shri Krishna Fuel Point"
+        assert clean_merchant("Received from MEENA KUMARI") == "Meena Kumari"
+
+    def test_pos_store_number_is_stripped(self):
+        assert clean_merchant("POS 9012 SHANTALA SILK HOUSE") == "Shantala Silk House"
 
 
 class TestDetectColumns:
@@ -80,6 +98,21 @@ class TestDetectColumns:
         assert mapping.date == 0
         assert mapping.description == 1
         assert mapping.amount == 2
+
+    def test_timestamp_header_with_id_column(self):
+        """A Txn ID column must not be mistaken for the amount column."""
+        rows = [
+            ["Txn ID", "Timestamp", "Transaction Details", "Amount (₹)", "DR/CR"],
+            ["TX1", "2026-09-02 18:30:12", "Paid to SHRI KRISHNA FUEL POINT", "2000.00", "DR"],
+            ["TX2", "03-09-2026", "Received from MEENA KUMARI", "500.00", "CR"],
+        ]
+        mapping = detect_columns(rows)
+        assert (
+            mapping.date,
+            mapping.description,
+            mapping.amount,
+            mapping.direction,
+        ) == (1, 2, 3, 4)
 
 
 class TestRowsToTransactions:
@@ -116,3 +149,34 @@ class TestCsvEndToEnd:
         assert len(frame) == 2
         assert meta["delimiter"] == ","
         assert frame["amount"].sum() == 469.5
+
+    def test_unrecognised_export_layout(self, tmp_path):
+        """Odd headers, ISO timestamps and DR/CR columns still parse."""
+        content = (
+            "Txn ID,Timestamp,Transaction Details,Amount (₹),DR/CR\n"
+            "TX1,2026-09-02 18:30:12,Paid to SHRI KRISHNA FUEL POINT,2000.00,DR\n"
+            "TX2,03-09-2026,Received from MEENA KUMARI,500.00,CR\n"
+        )
+        path = tmp_path / "messy.csv"
+        path.write_text(content, encoding="utf-8")
+        frame, _ = parse_csv(str(path))
+        assert len(frame) == 2
+        assert frame.iloc[0]["amount"] == 2000.0
+        assert frame.iloc[0]["direction"] == "debit"
+        assert frame.iloc[0]["date"] == datetime(2026, 9, 2, 18, 30, 12)
+        assert frame.iloc[1]["direction"] == "credit"
+
+    def test_bank_export_with_grouped_amounts(self, tmp_path):
+        """Quoted "1,240.00" amounts and balance columns are handled."""
+        content = (
+            "Txn Date,Narration,Withdrawal Amt.,Deposit Amt.,Closing Balance\n"
+            '01/09/2026,"UPI/DR/482910/BUNTY CHICKEN CORNER/bunty@ybl",450.00,,"12,340.50"\n'
+            '03/09/2026,"UPI/DR/482911/SRI VENKATESWARA PROVISION STORE/vps@okicici",'
+            '"1,240.00",,"11,100.50"\n'
+        )
+        path = tmp_path / "bank.csv"
+        path.write_text(content, encoding="utf-8")
+        frame, _ = parse_csv(str(path))
+        assert len(frame) == 2
+        assert frame["amount"].sum() == 1690.0
+        assert set(frame["direction"]) == {"debit"}

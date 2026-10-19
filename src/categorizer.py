@@ -2,11 +2,15 @@
 
 Design notes
 ------------
-1. Rules cover the vast majority of Indian consumer merchants and cost nothing.
+1. Rules cover Indian consumer merchants — including generic neighbourhood
+   words (pharmacy, restaurant, supermarket, fuel point, tuition centre …) so
+   that informal or unrecognised merchants still land in the right bucket.
 2. Every LLM answer is cached on disk (``data/merchant_cache.json``), so the
-   same merchant is never classified twice.
-3. Anything still unresolved falls back to heuristics (P2P detection) and
-   finally "Other" — the app never crashes without an API key.
+   same merchant is never classified twice. Answers are validated against the
+   fixed category list and normalised (casing, punctuation, fences).
+3. Anything still unresolved falls back to heuristics — P2P markers, then
+   person-name detection — and finally "Other". The app never crashes and
+   never needs a key to produce a full report.
 """
 
 from __future__ import annotations
@@ -43,65 +47,98 @@ CATEGORIES = [
 RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(pattern, re.I), category)
     for pattern, category in [
-        # services of a parent brand must come before the parent itself
+        # services of a parent brand must come before the parent itself,
+        # and payment-relevant words before brand words
         (
             r"instamart|blinkit|zepto|bigbasket|jiomart|dmart|licious|reliance fresh"
-            r"|more supermarket|more retail|spencers|kirana",
+            r"|more supermarket|more retail|spencers|kirana|super ?market|supermarket"
+            r"|grocer(y|ies)|provision|general store|departmental store|mini ?mart"
+            r"|vegetables|veggies|fresh fruits|fruit shop|dairy|aavin|amul|nandini"
+            r"|milk ?(booth|parlour|parlor)|metro ?cash",
             "Groceries",
         ),
         (
             r"netflix|spotify|youtube ?premium|prime video|hotstar|jio ?cinema|disney|sonyliv|zee5"
             r"|icloud|google one|chatgpt|openai|claude|anthropic|adobe|canva|notion|github"
-            r"|cult\.?fit|curefit|amazon prime|linkedin premium",
+            r"|cult\.?fit|curefit|amazon prime|linkedin premium|membership|annual plan"
+            r"|subscription",
             "Subscriptions",
         ),
         (
-            r"swiggy|zomato|eatsure|faasos|domino|pizza hut|kfc|burger king|mcdonald|wendy|subway",
+            r"swiggy|zomato|eatsure|faasos|domino|pizza hut|kfc|burger king|mcdonald|wendy|subway"
+            r"|freshmenu|fresh ?menu|box8|behrouz|biryani ?blue|meghana|kritunga|kabab|kebab"
+            r"|rolls?|wow ?momo|pizza|burger",
             "Food Delivery",
         ),
         (
             r"starbucks|third wave|blu[e]? tokai|chaayos|chai ?point|coffee|cafe|bakery|juice"
-            r"|shake|dessert|ice cream|baskin|naturals",
+            r"|shake|dessert|ice ?cream|baskin|naturals|restaurant|restro|dhaba|kitchen"
+            r"|eatery|tiffin|mess\b|canteen|sweets?|momo|cake|bhavan",
             "Eating Out",
         ),
         (
             r"uber|(?<![a-z])ola(?![a-z])|rapido|blusmart|namma ?metro|bmtc|yulu|bounce"
-            r"|park ?\+|fastag|toll",
+            r"|park ?\+|fastag|toll|(?<![a-z])cabs?(?![a-z])|taxi|rickshaw"
+            r"|(?<![a-z])bus(?![a-z])|(?<![a-z])metro(?![a-z])|petrol|diesel|fuel"
+            r"|filling station|iocl|bpcl|hpcl|indian oil|bharat petroleum|nayara|shell fuel"
+            r"|garage|puncture|service station|ev ?charg|fleet ?x",
             "Transport",
         ),
         (
             r"jio(?! ?mart)|airtel|vodafone|(?<![a-z])vi(?![a-z])|act fibernet|fibernet|broadband"
-            r"|bescom|bwssb|electricity|gas bill|indane|hp gas|lpg|water bill|tata power|recharge",
+            r"|bescom|bwssb|electricity|gas bill|indane|hp gas|lpg|water bill|tata power|recharge"
+            r"|bsnl|hathway|tata ?sky|d2h|dish ?tv|sun ?direct|postpaid|bill ?desk"
+            r"|adani electricity|mseb|kseb|tneb|bses|smart meter|cable ?tv"
+            r"|(?<![a-z])cable(?![a-z])",
             "Utilities",
         ),
         (
             r"amazon|flipkart|myntra|ajio|meesho|nykaa|decathlon|croma|zudio|zara|h&m|uniqlo"
-            r"|lenskart|titan|caratlane",
+            r"|lenskart|titan|caratlane|reliance (digital|trends|smart)|vijay sales|pantaloons"
+            r"|westside|max fashion|shoppers stop|bata|nike|adidas|puma|levis|allen solly"
+            r"|van heusen|tanishq|kalyan jewell?ers|malabar gold|joyalukkas|first ?cry"
+            r"|electro|electronics|appliances?|mobiles?|furniture|mattress|paints?\b"
+            r"|hardware|garments?|textiles?|fashion|apparel|footwear|shoe"
+            r"|salon|spa\b|barber|beauty|cosmetics?|grooming",
             "Shopping",
         ),
-        (r"bookmyshow|pvr|inox|imax|cinema|steam|playstation|xbox|dream11|gaming", "Entertainment"),
+        (
+            r"bookmyshow|pvr|inox|imax|cinema|steam|playstation|xbox|dream11|gaming|arcade"
+            r"|amusement|water ?park|theme park|bowling|(?<![a-z])zoo(?![a-z])|museum",
+            "Entertainment",
+        ),
         (
             r"irctc|redbus|makemytrip|make ?my ?trip|goibibo|ixigo|indigo|air ?india|vistara"
-            r"|spicejet|oyo|airbnb|hotel|resort",
+            r"|spicejet|akasa|oyo|treebo|fabhotel|airbnb|hotel|resort|lodge|guest ?house"
+            r"|home ?stay|(?<![a-z])inn(?![a-z])|travels?|tours?|yatra|cleartrip|railway"
+            r"|(?<![a-z])flight",
             "Travel",
         ),
         (
             r"apollo|pharmeasy|netmeds|(?<![a-z])1mg|tata 1mg|medplus|practo|hospital|clinic"
-            r"|dental|diagnostic",
+            r"|dental|diagnostic|pharmacy|pharma|medicals?|medico|medicine|drug ?store"
+            r"|nursing home|optical|ayurved|homeo|(?<![a-z])labs?(?![a-z])|gym|fitness|yoga",
             "Health",
         ),
         (
             r"udemy|coursera|guvi|scaler|unacademy|byju|christ university|christ college"
-            r"|exam fee|tuition|college fee|stationery|book store|gangaram|blossom|school fee",
+            r"|exam fee|tuition|college fee|school fee|stationery|book store|gangaram|blossom"
+            r"|school|college|university|institute|academy|coaching|classes|admission"
+            r"|library|physics ?wallah|vedantu|simplilearn|upgrad|edureka|nptel",
             "Education",
         ),
         (r"\batm\b|cash wdl|withdrawal|cash deposit", "Cash"),
         (
             r"charges|service charge|penalty|late fee|annual fee|convenience fee|sms charge"
-            r"|minimum balance|\bgst\b|processing fee|emi",
+            r"|minimum balance|\bgst\b|processing fee|\bemi\b|platform fee|gateway fee"
+            r"|maintenance charge|\bamc\b",
             "Fees & Charges",
         ),
-        (r"\brent\b|landlord|zolo|stanza|nestaway|paying guest", "Rent"),
+        (
+            r"\brent\b|landlord|zolo|stanza|nestaway|paying guest|(?<![a-z])pg(?![a-z])"
+            r"|hostel|house rent|room rent|flat rent|monthly rent",
+            "Rent",
+        ),
     ]
 ]
 
@@ -114,6 +151,8 @@ _ALIASES = {
     "blinkit": "Blinkit",
     "zepto": "Zepto",
     "bigbasket": "BigBasket",
+    "dmart": "DMart",
+    "freshmenu": "FreshMenu",
     "uber": "Uber",
     "ola": "Ola",
     "rapido": "Rapido",
@@ -123,10 +162,19 @@ _ALIASES = {
     "myntra": "Myntra",
     "netflix": "Netflix",
     "spotify": "Spotify",
+    "icloud": "iCloud",
+    "google one": "Google One",
     "jio": "Jio",
     "airtel": "Airtel",
     "bescom": "BESCOM",
     "bwssb": "BWSSB",
+    "irctc": "IRCTC",
+    "oyo": "OYO",
+    "pvr": "PVR",
+    "bookmyshow": "BookMyShow",
+    "pharmeasy": "PharmEasy",
+    "netmeds": "Netmeds",
+    "tata 1mg": "Tata 1mg",
     "atm cash wdl": "ATM Withdrawal",
     "atm withdrawal": "ATM Withdrawal",
     "landlord": "Landlord",
@@ -138,6 +186,17 @@ _ALIASES = {
 }
 
 _LLM_BATCH = 40
+
+_CATEGORY_LOOKUP = {category.lower(): category for category in CATEGORIES}
+
+#: Words that mark a merchant as a business even when the name looks personal.
+_BUSINESS_WORDS = re.compile(
+    r"(?i)\b(?:store|shop|traders?|enterprises?|agency|services?|solutions?|works|company"
+    r"|co|pvt|ltd|llp|kart|mart|point|centre|center|hotel|restaurant|cafe|corner|house"
+    r"|palace|plaza|kitchen|bakery|sweets|bhavan|dhaba|chicken|foods?|grill|tailors?"
+    r"|boutique|parlour|parlor|garments|jewell?ers|opticals?|medicals?|pharmacy|provision"
+    r"|showroom|studio|salon|spa|fitness)s?\b",
+)
 
 
 def canonical_merchant(cleaned: str) -> str:
@@ -187,6 +246,16 @@ def save_cache(cache: dict[str, str]) -> None:
 
 def _looks_like_p2p(description: str) -> bool:
     return bool(re.search(r"\bp2a\b", description, re.I))
+
+
+def _looks_like_person(merchant: str) -> bool:
+    """Two to three plain alphabetic words with no business keywords — a person."""
+    tokens = merchant.split()
+    if not 1 < len(tokens) <= 3:
+        return False
+    if not all(token.isalpha() for token in tokens):
+        return False
+    return not _BUSINESS_WORDS.search(merchant)
 
 
 def categorize(
@@ -254,7 +323,9 @@ def categorize(
 
     for merchant, positions in unresolved.items():
         for position in positions:
-            if _looks_like_p2p(str(frame["description"].iloc[position])):
+            if _looks_like_p2p(str(frame["description"].iloc[position])) or _looks_like_person(
+                merchant
+            ):
                 categories[position] = "Transfers"
                 stats["fallback"] += 1
             else:
@@ -268,10 +339,16 @@ def categorize(
 def _classify_with_llm(merchants: list[str], client: LLMClient) -> dict[str, str]:
     """Classify merchants in batches; returns a lower-cased key -> category map."""
     system = (
-        "You classify Indian UPI transaction merchants into exactly one spending category. "
-        f"Allowed categories: {', '.join(CATEGORIES)}. "
-        "Reply with ONLY a JSON object mapping each input merchant to its category, "
-        'for example {"blue tokai": "Eating Out"}. Never invent categories.'
+        "You classify Indian UPI transaction merchants into exactly one spending "
+        f"category. Allowed categories: {', '.join(CATEGORIES)}. "
+        "Guidance for hard cases: person names or '@' handles with no business "
+        "context are 'Transfers'; petrol pumps and cab services are 'Transport'; "
+        "medical and pharmacy shops are 'Health'; tuition and coaching centres are "
+        "'Education'; lpg/electricity/water/broadband payments are 'Utilities'; "
+        "neighbourhood 'hotels' that are eateries are 'Eating Out'; jewellery, "
+        "clothing and electronics shops are 'Shopping'; use 'Other' only as a last "
+        "resort. Reply with ONLY a JSON object mapping each merchant to its "
+        'category, for example {"blue tokai": "Eating Out"}. Never invent categories.'
     )
     mapping: dict[str, str] = {}
     for start in range(0, len(merchants), _LLM_BATCH):
@@ -280,16 +357,43 @@ def _classify_with_llm(merchants: list[str], client: LLMClient) -> dict[str, str
         response = client.complete(system, prompt, json_mode=True, temperature=0)
         if not response:
             continue
-        try:
-            parsed = json.loads(_strip_fences(response))
-        except ValueError:
-            continue
-        if not isinstance(parsed, dict):
+        parsed = _extract_json_object(response)
+        if not parsed:
             continue
         for merchant, category in parsed.items():
-            if isinstance(category, str) and category in CATEGORIES:
-                mapping[str(merchant).strip().lower()] = category
+            normalized = _normalize_category(category)
+            if normalized:
+                mapping[str(merchant).strip().lower()] = normalized
     return mapping
+
+
+def _normalize_category(value: object) -> str | None:
+    """Map a model answer onto the allowed list, tolerating case/punctuation."""
+    if not isinstance(value, str):
+        return None
+    key = value.strip().strip(".\"'`")
+    key = " ".join(key.lower().replace("-", " ").replace("_", " ").split())
+    return _CATEGORY_LOOKUP.get(key)
+
+
+def _extract_json_object(text: str) -> dict | None:
+    """Parse a JSON object, tolerating code fences or surrounding prose."""
+    cleaned = _strip_fences(text)
+    parsed = _try_parse_object(cleaned)
+    if parsed is not None:
+        return parsed
+    match = re.search(r"\{.*\}", cleaned, re.S)
+    if match:
+        return _try_parse_object(match.group(0))
+    return None
+
+
+def _try_parse_object(text: str) -> dict | None:
+    try:
+        value = json.loads(text)
+    except ValueError:
+        return None
+    return value if isinstance(value, dict) else None
 
 
 def _strip_fences(text: str) -> str:
